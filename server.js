@@ -18,6 +18,8 @@ import sliderRoutes from "./routes/sliderRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import videoRoutes from "./routes/videoRoute.js";
+
 
 // User routes
 import userRoutes from "./routes/userRoutes.js";
@@ -64,12 +66,17 @@ app.use("/api/sliders", sliderRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/videos", videoRoutes);
+
 
 // User routes
 app.use("/api/users", userRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/user-orders", userOrderRoutes); 
+
+// video route
+
 
 // Default
 app.get("/", (_req, res) => res.send("✅ API is running..."));

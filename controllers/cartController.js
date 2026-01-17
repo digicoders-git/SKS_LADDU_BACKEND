@@ -184,7 +184,7 @@ export const getCartTotal = async (req, res) => {
       .populate("items.product");
 
     if (!cart || cart.items.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
+      return res.status(200).json({ message: "Cart is empty" });
     }
 
     let totalAmount = 0;

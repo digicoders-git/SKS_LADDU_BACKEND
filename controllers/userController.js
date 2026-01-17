@@ -125,36 +125,128 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// Update Profile
+
 export const updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, phone, dateOfBirth, gender, preferences, profilePicture } = req.body;
-    const user = await User.findById(req.user.sub);
-    
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const {
+      // profile fields
+      firstName,
+      lastName,
+      phone,
+      dateOfBirth,
+      gender,
+      preferences,
+      profilePicture,
 
+      // password fields
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    } = req.body;
+
+
+   const user = await User.findById(req.user.sub).select("+password")
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // =========================
+    //  PASSWORD UPDATE FLOW
+    // =========================
+    const isPasswordUpdate =
+      currentPassword || newPassword || confirmPassword;
+
+    if (isPasswordUpdate) {
+      //  profile + password together not allowed
+      if (
+        firstName ||
+        lastName ||
+        phone ||
+        dateOfBirth ||
+        gender ||
+        preferences ||
+        profilePicture
+      ) {
+        return res.status(400).json({
+          message: "Profile update and password update cannot be done together",
+        });
+      }
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        return res.status(400).json({
+          message: "Current, new and confirm password are required",
+        });
+      }
+
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({
+          message: "New password and confirm password do not match",
+        });
+      }
+
+      console.log(user.password)
+      const isMatch = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+
+      if (!isMatch) {
+        return res.status(401).json({
+          message: "Current password is incorrect",
+        });
+      }
+
+      user.password = await bcrypt.hash(newPassword, 10);
+      await user.save();
+
+      return res.json({
+        message: "Password updated successfully",
+      });
+    }
+
+    // =========================
+    // 👤 PROFILE UPDATE FLOW
+    // =========================
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
+
     if (phone) {
-      // Check if phone already exists for another user
-      const phoneExists = await User.findOne({ phone, _id: { $ne: user._id } }).lean();
+      const phoneExists = await User.findOne({
+        phone,
+        _id: { $ne: user._id },
+      }).lean();
+
       if (phoneExists) {
-        return res.status(409).json({ message: "Phone number already exists" });
+        return res.status(409).json({
+          message: "Phone number already exists",
+        });
       }
       user.phone = phone;
     }
+
     if (dateOfBirth) user.dateOfBirth = new Date(dateOfBirth);
     if (gender) user.gender = gender;
     if (profilePicture) user.profilePicture = profilePicture;
-    if (preferences) user.preferences = { ...user.preferences, ...preferences };
+
+    if (preferences) {
+      user.preferences = {
+        ...user.preferences,
+        ...preferences,
+      };
+    }
 
     await user.save();
-    res.json({ message: "Profile updated", user });
+
+    res.json({
+      message: "Profile updated successfully",
+      user,
+    });
   } catch (err) {
     console.error("updateProfile error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Get All Addresses
 export const getAddresses = async (req, res) => {

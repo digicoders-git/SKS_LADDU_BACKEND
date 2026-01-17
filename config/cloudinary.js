@@ -63,4 +63,30 @@ const sliderMulter = multer({
 });
 const uploadSliderImage = sliderMulter.single("image");
 
-export { cloudinary, uploadProductImages, uploadSliderImage };
+
+// video revies
+const videoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "glassecommerce_videos",
+    resource_type: "video",
+    allowed_formats: ["mp4", "mov", "webm", "mkv"],
+  },
+});
+
+const videoMulter = multer({
+  storage: videoStorage,
+  limits: { fileSize: 200 * 1024 * 1024 },
+});
+
+const uploadVideo = videoMulter.single("video");
+
+
+export {
+  cloudinary,
+  uploadProductImages,
+  uploadSliderImage,
+  uploadVideo,
+};
+
+
