@@ -83,12 +83,17 @@ export const createProduct = async (req, res) => {
 
 
 // LIST
-export const listProducts = async (_req, res) => {
+export const listProducts = async (req, res) => {
   try {
-    const products = await Product.find({ isActive: true })
+    const { status } = req.query;
+    let filter = {};
+    if (status === 'active') filter = { isActive: true };
+    if (status === 'inactive') filter = { isActive: false };
+    
+    const products = await Product.find(filter)
       .populate("category", "name slug")
       .sort({ createdAt: -1 });
-    res.json({ products });
+    res.json(products);
   } catch (err) {
     console.error("listProducts error:", err);
     res.status(500).json({ message: "Server error" });
@@ -250,6 +255,32 @@ export const updateProduct = async (req, res) => {
 };
 
 
+// TOGGLE STATUS
+export const toggleProductStatus = async (req, res) => {
+  try {
+    const { idOrSlug } = req.params;
+    
+    let product =
+      (await Product.findOne({ slug: idOrSlug })) ||
+      (await Product.findById(idOrSlug));
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    product.isActive = !product.isActive;
+    await product.save();
+
+    res.json({ 
+      message: `Product ${product.isActive ? "activated" : "deactivated"} successfully`,
+      product 
+    });
+  } catch (err) {
+    console.error("toggleProductStatus error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // DELETE
 export const deleteProduct = async (req, res) => {
   try {
@@ -271,3 +302,5 @@ export const deleteProduct = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+

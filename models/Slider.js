@@ -11,7 +11,7 @@ const imageSchema = new mongoose.Schema(
 
 const sliderSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true },
+    title: { type: String, default: "" },
     subtitle: { type: String, default: "" },
     image: { type: imageSchema, required: true },
     buttonText: { type: String, default: "" },

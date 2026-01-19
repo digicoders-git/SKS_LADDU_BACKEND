@@ -18,11 +18,14 @@ export const createCategory = async (req, res) => {
   }
 };
 
-export const listCategories = async (_req, res) => {
+export const listCategories = async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true }).sort({
-      name: 1,
-    });
+    const { status } = req.query;
+    let filter = {};
+    if (status === 'active') filter = { isActive: true };
+    if (status === 'inactive') filter = { isActive: false };
+    
+    const categories = await Category.find(filter).sort({ name: 1 });
     res.json({ categories });
   } catch (err) {
     console.error("listCategories error:", err);

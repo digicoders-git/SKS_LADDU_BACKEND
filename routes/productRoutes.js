@@ -7,6 +7,7 @@ import {
   updateProduct,
   deleteProduct,
   listProductsByCategory,
+  toggleProductStatus,
 } from "../controllers/productController.js";
 import { requireAuth } from "../middleware/auth.js";
 import { uploadProductImages } from "../config/cloudinary.js";
@@ -20,5 +21,6 @@ router.get("/by-category/:idOrSlug", listProductsByCategory);
 router.post("/", requireAuth, uploadProductImages, createProduct);
 router.put("/:idOrSlug", requireAuth, uploadProductImages, updateProduct);
 router.delete("/:idOrSlug", requireAuth, deleteProduct);
+router.patch("/:idOrSlug/toggle-status", requireAuth, toggleProductStatus);
 
 export default router;
