@@ -19,7 +19,8 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import videoRoutes from "./routes/videoRoute.js";
-
+import shippingRoutes from "./routes/shippingRoute.js";
+import webhookRoutes from "./routes/webhookRoute.js";
 
 // User routes
 import userRoutes from "./routes/userRoutes.js";
@@ -67,7 +68,8 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/videos", videoRoutes);
-
+app.use("/api/shipping", shippingRoutes);
+app.use("/api/webhook", webhookRoutes);
 
 // User routes
 app.use("/api/users", userRoutes);

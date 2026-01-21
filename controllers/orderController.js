@@ -2,6 +2,7 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import Offer from "../models/Offer.js";
+import { createShiprocketOrder } from "./shiprocketOrder.controller.js";
 
 const applyOffer = (offer, subtotal) => {
   if (!offer) return { discount: 0, total: subtotal };
@@ -21,7 +22,7 @@ const applyOffer = (offer, subtotal) => {
   return { discount: Math.round(discount), total: Math.round(total) };
 };
 
-// PLACE ORDER (public)
+// PLACE ORDER (public) - Auto Shiprocket Integration
 export const placeOrder = async (req, res) => {
   try {
     const { userId, items, shippingAddress, offerCode, paymentMethod, notes } =
@@ -93,7 +94,33 @@ export const placeOrder = async (req, res) => {
       notes,
     });
 
-    res.status(201).json({ message: "Order placed", order });
+    // Auto create Shiprocket order for COD orders
+    if (paymentMethod === "COD") {
+      try {
+        console.log("🚀 Auto-creating Shiprocket order for COD:", order._id);
+        const shiprocketRes = await createShiprocketOrder(order);
+        
+        order.shiprocketOrderId = shiprocketRes.order_id;
+        order.awbCode = shiprocketRes.awb_code;
+        order.courierName = shiprocketRes.courier_name;
+        order.shipmentId = shiprocketRes.shipment_id;
+        order.shiprocketCreated = true;
+        order.status = "confirmed";
+        
+        await order.save();
+        console.log("✅ Shiprocket order auto-created:", shiprocketRes.order_id);
+      } catch (shiprocketError) {
+        console.error("❌ Auto Shiprocket creation failed:", shiprocketError.message);
+        order.shiprocketError = shiprocketError.message;
+        await order.save();
+      }
+    }
+
+    res.status(201).json({ 
+      message: "Order placed successfully", 
+      order,
+      shiprocketStatus: order.shiprocketCreated ? "Created" : "Pending"
+    });
   } catch (err) {
     console.error("placeOrder error:", err);
     res.status(500).json({ message: "Server error" });
@@ -129,7 +156,7 @@ export const getOrder = async (req, res) => {
   }
 };
 
-// ADMIN update status
+// ADMIN update status with Enhanced Shiprocket integration
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -138,13 +165,72 @@ export const updateOrderStatus = async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    // If status is being changed to "confirmed", create Shiprocket order
+    if (status === "confirmed" && order.status !== "confirmed" && !order.shiprocketOrderId) {
+      try {
+        console.log("🚀 Creating Shiprocket order for:", orderId);
+        
+        const shiprocketRes = await createShiprocketOrder(order);
+        
+        // Update order with Shiprocket details
+        order.shiprocketOrderId = shiprocketRes.order_id;
+        order.awbCode = shiprocketRes.awb_code;
+        order.courierName = shiprocketRes.courier_name;
+        order.shipmentId = shiprocketRes.shipment_id;
+        order.shiprocketCreated = true;
+        order.shiprocketError = null; // Clear any previous errors
+        
+        console.log("✅ Shiprocket order created:", {
+          orderId: shiprocketRes.order_id,
+          awb: shiprocketRes.awb_code,
+          courier: shiprocketRes.courier_name
+        });
+      } catch (shiprocketError) {
+        console.error("❌ Shiprocket error:", shiprocketError.message);
+        order.shiprocketError = shiprocketError.message;
+        // Don't fail the status update if Shiprocket fails
+      }
+    }
+
     if (status) order.status = status;
     if (paymentStatus) order.paymentStatus = paymentStatus;
 
     await order.save();
-    res.json({ message: "Order updated", order });
+    res.json({ 
+      message: "Order updated successfully", 
+      order,
+      shiprocketStatus: order.shiprocketCreated ? "Active" : "Not created",
+      shiprocketError: order.shiprocketError || null
+    });
   } catch (err) {
     console.error("updateOrderStatus error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get order tracking info
+export const getOrderTracking = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+    
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    
+    const trackingInfo = {
+      orderId: order._id,
+      status: order.status,
+      shippingStatus: order.shippingStatus,
+      awbCode: order.awbCode,
+      courierName: order.courierName,
+      trackingUrl: order.trackingUrl,
+      shiprocketOrderId: order.shiprocketOrderId,
+      shiprocketCreated: order.shiprocketCreated,
+      shiprocketError: order.shiprocketError
+    };
+    
+    res.json({ trackingInfo });
+  } catch (err) {
+    console.error("getOrderTracking error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

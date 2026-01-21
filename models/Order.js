@@ -56,6 +56,17 @@ const orderSchema = new mongoose.Schema(
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
 
+    // Shiprocket fields
+    shiprocketOrderId: { type: String },
+    awbCode: { type: String },
+    courierName: { type: String },
+    trackingUrl: { type: String },
+    shipmentId: { type: String },
+    weight: { type: Number, default: 0.5 }, // kg
+    shippingStatus: { type: String }, // Shiprocket webhook status
+    shiprocketCreated: { type: Boolean, default: false },
+    shiprocketError: { type: String }, // Store any shiprocket errors
+
     shippingAddress: { type: addressSchema, required: true },
     notes: { type: String, default: "" },
   },
