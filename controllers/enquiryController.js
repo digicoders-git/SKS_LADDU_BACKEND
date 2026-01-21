@@ -21,10 +21,27 @@ export const createEnquiry = async (req, res) => {
   }
 };
 
-export const listEnquiries = async (_req, res) => {
+export const listEnquiries = async (req, res) => {
   try {
-    const enquiries = await Enquiry.find().sort({ createdAt: -1 });
-    res.json({ enquiries });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalEnquiries = await Enquiry.countDocuments();
+    const enquiries = await Enquiry.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      enquiries,
+      pagination: {
+        total: totalEnquiries,
+        page,
+        limit,
+        totalPages: Math.ceil(totalEnquiries / limit)
+      }
+    });
   } catch (err) {
     console.error("listEnquiries error:", err);
     res.status(500).json({ message: "Server error" });

@@ -156,12 +156,28 @@ export const placeOrder = async (req, res) => {
 
 
 // ADMIN list
-export const listOrders = async (_req, res) => {
+export const listOrders = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalOrders = await Order.countDocuments();
     const orders = await Order.find()
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate("items.product", "name slug");
-    res.json({ orders });
+
+    res.json({
+      orders,
+      pagination: {
+        total: totalOrders,
+        page,
+        limit,
+        totalPages: Math.ceil(totalOrders / limit)
+      }
+    });
   } catch (err) {
     console.error("listOrders error:", err);
     res.status(500).json({ message: "Server error" });
@@ -197,9 +213,9 @@ export const updateOrderStatus = async (req, res) => {
     if (status === "confirmed" && order.status !== "confirmed" && !order.shiprocketCreated) {
       try {
         console.log("🚀 Creating Shiprocket order for:", orderId);
-        
+
         const shiprocketRes = await createShiprocketOrder(order);
-        
+
         // Update order with Shiprocket details
         order.shiprocketOrderId = shiprocketRes.order_id;
         order.awbCode = shiprocketRes.awb_code;
@@ -207,7 +223,7 @@ export const updateOrderStatus = async (req, res) => {
         order.shipmentId = shiprocketRes.shipment_id;
         order.shiprocketCreated = true;
         order.shiprocketError = null; // Clear any previous errors
-        
+
         console.log("✅ Shiprocket order created:", {
           orderId: shiprocketRes.order_id,
           awb: shiprocketRes.awb_code,
@@ -217,7 +233,7 @@ export const updateOrderStatus = async (req, res) => {
         console.error("❌ Shiprocket error:", shiprocketError.message);
         order.shiprocketError = shiprocketError.message;
         // Revert status back to pending if Shiprocket creation fails
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Order confirmation failed: Shiprocket order creation failed",
           error: shiprocketError.message
         });
@@ -228,8 +244,8 @@ export const updateOrderStatus = async (req, res) => {
     if (paymentStatus) order.paymentStatus = paymentStatus;
 
     await order.save();
-    res.json({ 
-      message: "Order updated successfully", 
+    res.json({
+      message: "Order updated successfully",
       order,
       shiprocketStatus: order.shiprocketCreated ? "Active" : "Not created",
       shiprocketError: order.shiprocketError || null
@@ -245,9 +261,9 @@ export const getOrderTracking = async (req, res) => {
   try {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
-    
+
     if (!order) return res.status(404).json({ message: "Order not found" });
-    
+
     const trackingInfo = {
       orderId: order._id,
       status: order.status,
@@ -259,7 +275,7 @@ export const getOrderTracking = async (req, res) => {
       shiprocketCreated: order.shiprocketCreated,
       shiprocketError: order.shiprocketError
     };
-    
+
     res.json({ trackingInfo });
   } catch (err) {
     console.error("getOrderTracking error:", err);

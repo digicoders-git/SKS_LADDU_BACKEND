@@ -18,7 +18,7 @@ const signJwt = (user) =>
 export const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password, dateOfBirth, gender } = req.body;
-    
+
     if (!firstName || !lastName || !email || !phone || !password) {
       return res.status(400).json({ message: "First name, last name, email, phone and password are required" });
     }
@@ -40,11 +40,11 @@ export const registerUser = async (req, res) => {
     }
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = await User.create({ 
-      firstName, 
-      lastName, 
-      email, 
-      phone, 
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      phone,
       password: hash,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       gender
@@ -54,11 +54,11 @@ export const registerUser = async (req, res) => {
 
     res.status(201).json({
       message: "Registration successful",
-      user: { 
-        id: user._id, 
+      user: {
+        id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email, 
+        email: user.email,
         phone: user.phone,
         dateOfBirth: user.dateOfBirth,
         gender: user.gender
@@ -75,7 +75,7 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
@@ -94,11 +94,11 @@ export const loginUser = async (req, res) => {
 
     res.json({
       message: "Login successful",
-      user: { 
-        id: user._id, 
+      user: {
+        id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email, 
+        email: user.email,
         phone: user.phone,
         dateOfBirth: user.dateOfBirth,
         gender: user.gender,
@@ -145,7 +145,7 @@ export const updateProfile = async (req, res) => {
     } = req.body;
 
 
-   const user = await User.findById(req.user.sub).select("+password")
+    const user = await User.findById(req.user.sub).select("+password")
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -265,7 +265,7 @@ export const getAddresses = async (req, res) => {
 export const addAddress = async (req, res) => {
   try {
     const { name, phone, addressLine1, addressLine2, city, state, pincode, addressType, isDefault } = req.body;
-    
+
     if (!name || !phone || !addressLine1 || !city || !state || !pincode) {
       return res.status(400).json({ message: "Required address fields missing" });
     }
@@ -277,16 +277,16 @@ export const addAddress = async (req, res) => {
       user.addresses.forEach(addr => addr.isDefault = false);
     }
 
-    user.addresses.push({ 
-      name, 
-      phone, 
-      addressLine1, 
-      addressLine2, 
-      city, 
-      state, 
-      pincode, 
+    user.addresses.push({
+      name,
+      phone,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      pincode,
       addressType: addressType || "home",
-      isDefault 
+      isDefault
     });
     await user.save();
 
@@ -328,7 +328,7 @@ export const deleteAddress = async (req, res) => {
   try {
     const { addressId } = req.params;
     const user = await User.findById(req.user.sub);
-    
+
     if (!user) return res.status(404).json({ message: "User not found" });
 
     user.addresses.pull(addressId);
@@ -344,8 +344,26 @@ export const deleteAddress = async (req, res) => {
 // getallusers
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, '-password -tokenVersion').lean();
-    res.json({ users });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalUsers = await User.countDocuments();
+    const users = await User.find({}, '-password -tokenVersion')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    res.json({
+      users,
+      pagination: {
+        total: totalUsers,
+        page,
+        limit,
+        totalPages: Math.ceil(totalUsers / limit)
+      }
+    });
   } catch (err) {
     console.error("getAllUsers error:", err);
     res.status(500).json({ message: "Server error" });
