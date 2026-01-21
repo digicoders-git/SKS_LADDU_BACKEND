@@ -21,6 +21,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import videoRoutes from "./routes/videoRoute.js";
 import shippingRoutes from "./routes/shippingRoute.js";
 import webhookRoutes from "./routes/webhookRoute.js";
+import shiprocketRoutes from "./routes/shiprocketRoutes.js";
 
 // User routes
 import userRoutes from "./routes/userRoutes.js";
@@ -70,6 +71,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/webhook", webhookRoutes);
+app.use("/api/shiprocket", shiprocketRoutes);
 
 // User routes
 app.use("/api/users", userRoutes);

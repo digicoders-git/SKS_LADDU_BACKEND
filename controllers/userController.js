@@ -340,3 +340,14 @@ export const deleteAddress = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// getallusers
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, '-password -tokenVersion').lean();
+    res.json({ users });
+  } catch (err) {
+    console.error("getAllUsers error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+}

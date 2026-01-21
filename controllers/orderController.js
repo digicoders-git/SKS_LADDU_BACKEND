@@ -25,14 +25,24 @@ const applyOffer = (offer, subtotal) => {
 // PLACE ORDER (public) - Auto Shiprocket Integration
 export const placeOrder = async (req, res) => {
   try {
-    const { userId, items, shippingAddress, offerCode, paymentMethod, notes } =
-      req.body;
+    const {
+      userId,
+      items,
+      shippingAddress,
+      offerCode,
+      paymentMethod,
+      notes,
+      shippingCharges = 0,
+      handlingFee = 0
+    } = req.body;
+
 
     if (!userId || !items || !Array.isArray(items) || items.length === 0) {
       return res
         .status(400)
         .json({ message: "userId and items are required" });
     }
+
     if (!shippingAddress || !shippingAddress.name || !shippingAddress.phone) {
       return res.status(400).json({ message: "shippingAddress is invalid" });
     }
@@ -47,11 +57,13 @@ export const placeOrder = async (req, res) => {
       const product = products.find(
         (p) => String(p._id) === String(item.productId)
       );
+
       if (!product) {
         return res
           .status(400)
           .json({ message: `Invalid productId: ${item.productId}` });
       }
+
       const qty = Number(item.quantity || 1);
       const linePrice = product.finalPrice * qty;
       subtotal += linePrice;
@@ -63,15 +75,17 @@ export const placeOrder = async (req, res) => {
         quantity: qty,
         size: item.size,
         color: item.color,
-        addOnName: item.addOnName,
+        addOnName: item.addOnName
       });
     }
 
+    // 🎯 OFFER / DISCOUNT
     let offer = null;
     if (offerCode) {
       const now = new Date();
       const code = String(offerCode).toUpperCase();
       offer = await Offer.findOne({ code, isActive: true });
+
       if (
         offer &&
         ((offer.startDate && offer.startDate > now) ||
@@ -80,52 +94,66 @@ export const placeOrder = async (req, res) => {
         offer = null;
       }
     }
-    const { discount, total } = applyOffer(offer, subtotal);
 
+    const { discount, total: discountedTotal } = applyOffer(offer, subtotal);
+
+    // 🚚 ADD SHIPPING + HANDLING
+    const finalTotal =
+      Number(discountedTotal) +
+      Number(shippingCharges) +
+      Number(handlingFee);
+
+    // 📦 CREATE ORDER
     const order = await Order.create({
       userId,
       items: itemsForOrder,
       subtotal,
       discount,
-      total,
+      shippingCharges: Number(shippingCharges),
+      handlingFee: Number(handlingFee),
+      total: finalTotal,
       offerCode: offer ? offer.code : undefined,
       paymentMethod: paymentMethod || "COD",
       shippingAddress,
-      notes,
+      notes
     });
 
-    // Auto create Shiprocket order for COD orders
-    if (paymentMethod === "COD") {
-      try {
-        console.log("🚀 Auto-creating Shiprocket order for COD:", order._id);
-        const shiprocketRes = await createShiprocketOrder(order);
-        
-        order.shiprocketOrderId = shiprocketRes.order_id;
-        order.awbCode = shiprocketRes.awb_code;
-        order.courierName = shiprocketRes.courier_name;
-        order.shipmentId = shiprocketRes.shipment_id;
-        order.shiprocketCreated = true;
-        order.status = "confirmed";
-        
-        await order.save();
-        console.log("✅ Shiprocket order auto-created:", shiprocketRes.order_id);
-      } catch (shiprocketError) {
-        console.error("❌ Auto Shiprocket creation failed:", shiprocketError.message);
-        order.shiprocketError = shiprocketError.message;
-        await order.save();
-      }
+    // 🚀 AUTO CREATE SHIPROCKET ORDER (ALL ORDERS)
+    try {
+      console.log("🚀 Auto-creating Shiprocket order for:", order._id);
+
+      const shiprocketRes = await createShiprocketOrder(order);
+
+      order.shiprocketOrderId = shiprocketRes.order_id;
+      order.awbCode = shiprocketRes.awb_code;
+      order.courierName = shiprocketRes.courier_name;
+      order.shipmentId = shiprocketRes.shipment_id;
+      order.shiprocketCreated = true;
+      order.status = "confirmed"; // Only confirm if Shiprocket creation succeeds
+
+      await order.save();
+      console.log("✅ Shiprocket order auto-created and order confirmed:", shiprocketRes.order_id);
+    } catch (shiprocketError) {
+      console.error(
+        "❌ Auto Shiprocket creation failed, order remains pending:",
+        shiprocketError.message
+      );
+      order.shiprocketError = shiprocketError.message;
+      // Order status remains "pending" (default)
+      await order.save();
     }
 
-    res.status(201).json({ 
-      message: "Order placed successfully", 
+    return res.status(201).json({
+      message: "Order placed successfully",
       order,
       shiprocketStatus: order.shiprocketCreated ? "Created" : "Pending"
     });
   } catch (err) {
     console.error("placeOrder error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ADMIN list
 export const listOrders = async (_req, res) => {
@@ -165,8 +193,8 @@ export const updateOrderStatus = async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    // If status is being changed to "confirmed", create Shiprocket order
-    if (status === "confirmed" && order.status !== "confirmed" && !order.shiprocketOrderId) {
+    // If status is being changed to "confirmed", create Shiprocket order if not already created
+    if (status === "confirmed" && order.status !== "confirmed" && !order.shiprocketCreated) {
       try {
         console.log("🚀 Creating Shiprocket order for:", orderId);
         
@@ -188,7 +216,11 @@ export const updateOrderStatus = async (req, res) => {
       } catch (shiprocketError) {
         console.error("❌ Shiprocket error:", shiprocketError.message);
         order.shiprocketError = shiprocketError.message;
-        // Don't fail the status update if Shiprocket fails
+        // Revert status back to pending if Shiprocket creation fails
+        return res.status(400).json({ 
+          message: "Order confirmation failed: Shiprocket order creation failed",
+          error: shiprocketError.message
+        });
       }
     }
 

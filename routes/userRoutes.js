@@ -8,9 +8,11 @@ import {
   getAddresses,
   addAddress,
   updateAddress,
-  deleteAddress
+  deleteAddress,
+  getAllUsers
 } from "../controllers/userController.js";
 import { authenticateUser } from "../middleware/userAuth.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -20,6 +22,7 @@ router.post("/login", loginUser);
 
 // Protected routes
 router.get("/profile", authenticateUser, getProfile);
+router.get("/getAll", requireAuth, getAllUsers);
 router.put("/profile", authenticateUser, updateProfile);
 
 // Address management

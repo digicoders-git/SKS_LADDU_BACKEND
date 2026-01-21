@@ -4,6 +4,7 @@ import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import Offer from "../models/Offer.js";
 import User from "../models/User.js";
+import { createShiprocketOrder } from "./shiprocketOrder.controller.js";
 
 // Place Order
 export const placeOrder = async (req, res) => {
@@ -101,6 +102,28 @@ export const placeOrder = async (req, res) => {
       shippingAddress: address.toObject(),
       notes: notes || ""
     });
+
+    // Auto-create Shiprocket order and confirm for all orders
+    try {
+      const shiprocketResponse = await createShiprocketOrder(order);
+      
+      // Update order with Shiprocket data and confirm
+      order.shiprocketCreated = true;
+      order.shiprocketOrderId = shiprocketResponse.order_id;
+      order.shipmentId = shiprocketResponse.shipment_id;
+      order.awbCode = shiprocketResponse.awb_code;
+      order.courierName = shiprocketResponse.courier_name;
+      order.status = "confirmed"; // Only confirm if Shiprocket succeeds
+      
+      await order.save();
+      
+      console.log("✅ Order auto-confirmed with Shiprocket:", order._id);
+    } catch (shiprocketError) {
+      console.error("❌ Auto Shiprocket creation failed, order remains pending:", shiprocketError.message);
+      // Order remains pending if Shiprocket creation fails
+      order.shiprocketError = shiprocketError.message;
+      await order.save();
+    }
 
     // Clear cart
     cart.items = [];
