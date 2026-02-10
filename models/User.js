@@ -7,8 +7,10 @@ const userSchema = new mongoose.Schema(
     lastName: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     phone: { type: String, required: true, unique: true },
-    password: { type: String, required: true, select: false },
-    dateOfBirth: { type: Date },
+    OTP : { type: String},
+    isOtpVerified : { type: Boolean, default: false },
+    // password: { type: String, required: true, select: false },
+    // dateOfBirth: { type: Date },
     gender: { type: String, enum: ["male", "female", "other"] },
     
     // Profile completion

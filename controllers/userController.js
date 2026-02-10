@@ -2,6 +2,7 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import User from "../models/User.js";
+import { sendOtpSms } from "../services/sendSms.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -14,45 +15,54 @@ const signJwt = (user) =>
     { expiresIn: JWT_EXPIRES_IN }
   );
 
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+
 // Register User
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password, dateOfBirth, gender } = req.body;
+    const { firstName, lastName, email, phone, gender } = req.body;
 
-    if (!firstName || !lastName || !email || !phone || !password) {
-      return res.status(400).json({ message: "First name, last name, email, phone and password are required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!firstName || !lastName || !email || !phone) {
+      return res.status(400).json({
+        message: "All fields are required",
+      });
     }
 
     // Check email exists
     const emailExists = await User.findOne({ email }).lean();
     if (emailExists) {
-      return res.status(409).json({ message: "User already exists with this email" });
+      return res.status(409).json({
+        message: "User already exists with this email",
+      });
     }
 
     // Check phone exists
     const phoneExists = await User.findOne({ phone }).lean();
     if (phoneExists) {
-      return res.status(409).json({ message: "User already exists with this phone number" });
+      return res.status(409).json({
+        message: "User already exists with this phone number please login",
+      });
     }
 
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    // let generateOtp = generateOTP();
+
+    // Create user directly (no password, no token)
     const user = await User.create({
       firstName,
       lastName,
       email,
       phone,
-      password: hash,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      gender
+      // OTP: generateOtp,
+      gender,
     });
 
-    const token = signJwt(user);
+    // const SendOtp = sendOtpSms(phone, generateOtp)
 
-    res.status(201).json({
+
+    return res.status(201).json({
       message: "Registration successful",
       user: {
         id: user._id,
@@ -60,57 +70,81 @@ export const registerUser = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         phone: user.phone,
-        dateOfBirth: user.dateOfBirth,
-        gender: user.gender
+        gender: user.gender,
       },
-      token
     });
   } catch (err) {
     console.error("registerUser error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Login User
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { phone, otp } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+    if (!phone) {
+      return res.status(400).json({ message: "Phone number is required" });
     }
 
-    const user = await User.findOne({ email, isActive: true }).select("+password +tokenVersion");
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    const user = await User.findOne({ phone }).select("+tokenVersion");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+    // -------------------------
+    // CASE 1️⃣ : ONLY PHONE
+    // -------------------------
+    if (!otp) {
+      const generatedOtp = generateOTP();
 
-    // Update last login
+      user.OTP = generatedOtp;
+      user.isOtpVerified = false;
+      await user.save();
+
+      await sendOtpSms(phone, generatedOtp);
+
+      return res.status(200).json({
+        message: "OTP sent successfully",
+      });
+    }
+
+    // -------------------------
+    // CASE 2️⃣ : PHONE + OTP
+    // -------------------------
+    if (user.OTP !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // ✅ OTP matched
+    user.isOtpVerified = true;
     user.lastLogin = new Date();
     await user.save();
 
+    // ✅ TOKEN GENERATE HERE
     const token = signJwt(user);
 
-    res.json({
+    return res.status(200).json({
       message: "Login successful",
+      token,
       user: {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email,
         phone: user.phone,
-        dateOfBirth: user.dateOfBirth,
+        email: user.email,
         gender: user.gender,
-        lastLogin: user.lastLogin
+        lastLogin: user.lastLogin,
       },
-      token
     });
   } catch (err) {
     console.error("loginUser error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Get Profile
 export const getProfile = async (req, res) => {
