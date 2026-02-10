@@ -30,23 +30,21 @@ export const getPaymentMethods = async (req, res) => {
 export const updatePaymentMethodStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
 
-    const method = await PaymentMethod.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
-
+    const method = await PaymentMethod.findById(id);
     if (!method) {
       return res.status(404).json({ message: "Not found" });
     }
+
+    method.status = !method.status; // 🔁 toggle
+    await method.save();
 
     res.json(method);
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // UPDATE NAME
 export const updatePaymentMethodName = async (req, res) => {
