@@ -19,12 +19,20 @@ export const createPaymentMethod = async (req, res) => {
 // GET ALL
 export const getPaymentMethods = async (req, res) => {
   try {
-    const methods = await PaymentMethod.find().sort({ createdAt: -1 });
+    const { status } = req.query;
+
+    const filter = {};
+
+    if (status === "true") filter.status = true;
+    if (status === "false") filter.status = false;
+
+    const methods = await PaymentMethod.find(filter).sort({ createdAt: -1 });
     res.json(methods);
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // UPDATE STATUS
 export const updatePaymentMethodStatus = async (req, res) => {
