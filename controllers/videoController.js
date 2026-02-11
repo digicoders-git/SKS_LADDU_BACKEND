@@ -1,5 +1,11 @@
 import Video from "../models/video.js";
 import { cloudinary } from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 //  ADD VIDEO
 export const addVideo = async (req, res) => {
@@ -8,8 +14,9 @@ export const addVideo = async (req, res) => {
       return res.status(400).json({ message: "Video file required" });
     }
 
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
     const video = await Video.create({
-      url: req.file.path,        // cloudinary secure url
+      url: `${baseUrl}/uploads/videos/${req.file.filename}`,
       publicId: req.file.filename,
     });
 
@@ -61,10 +68,14 @@ export const deleteVideo = async (req, res) => {
       return res.status(404).json({ message: "Video not found" });
     }
 
-    // delete from cloudinary
-    await cloudinary.uploader.destroy(video.publicId, {
-      resource_type: "video",
-    });
+    // Delete local file
+    const filePath = path.join(__dirname, "../", video.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    // await cloudinary.uploader.destroy(video.publicId, {
+    //   resource_type: "video",
+    // });
 
     await video.deleteOne();
 

@@ -7,6 +7,11 @@ import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import connectDB from "./config/db.js";
 import moment from "moment-timezone";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import adminRoutes from "./routes/adminRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -32,7 +37,12 @@ import userOrderRoutes from "./routes/userOrderRoutes.js";
 
 const app = express();
 
-app.use(helmet());
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(
   cors({
     origin: true,
@@ -57,6 +67,7 @@ app.use("/api/users/register", authLimiter);
 // 🟢 DB Connect (with India timezone logging)
 await connectDB();
 console.log("⏳ Timezone:", moment().tz("Asia/Kolkata").format("DD-MM-YYYY hh:mm:ss A"));
+console.log("📁 Static files served from: /uploads");
 
 // Routes
 app.use("/api/admin", adminRoutes);

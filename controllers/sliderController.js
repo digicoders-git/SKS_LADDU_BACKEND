@@ -1,14 +1,24 @@
 // controllers/sliderController.js
 import Slider from "../models/Slider.js";
 import { cloudinary } from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const createSlider = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "image is required" });
 
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
     const slider = await Slider.create({
       title: `Slider ${Date.now()}`,
-      image: { url: req.file.path, publicId: req.file.filename },
+      image: { 
+        url: `${baseUrl}/uploads/sliders/${req.file.filename}`, 
+        publicId: req.file.filename 
+      },
     });
 
     res.status(201).json({ message: "Slider created", slider });
@@ -71,8 +81,18 @@ export const updateSlider = async (req, res) => {
     if (!slider) return res.status(404).json({ message: "Slider not found" });
 
     if (req.file) {
-      await cloudinary.uploader.destroy(slider.image.publicId);
-      slider.image = { url: req.file.path, publicId: req.file.filename };
+      // Delete old local file
+      const oldFilePath = path.join(__dirname, "../", slider.image.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+      // await cloudinary.uploader.destroy(slider.image.publicId);
+      
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      slider.image = { 
+        url: `${baseUrl}/uploads/sliders/${req.file.filename}`, 
+        publicId: req.file.filename 
+      };
     }
 
     await slider.save();
@@ -89,7 +109,13 @@ export const deleteSlider = async (req, res) => {
     const slider = await Slider.findById(id);
     if (!slider) return res.status(404).json({ message: "Slider not found" });
 
-    await cloudinary.uploader.destroy(slider.image.publicId);
+    // Delete local file
+    const filePath = path.join(__dirname, "../", slider.image.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    // await cloudinary.uploader.destroy(slider.image.publicId);
+    
     await Slider.deleteOne({ _id: slider._id });
 
     res.json({ message: "Slider deleted" });

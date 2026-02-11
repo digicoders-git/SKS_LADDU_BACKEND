@@ -1,34 +1,58 @@
 // config/cloudinary.js
-import { v2 as cloudinary } from "cloudinary";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
+// ==================== CLOUDINARY CODE (COMMENTED OUT) ====================
+// import { v2 as cloudinary } from "cloudinary";
+// import { CloudinaryStorage } from "multer-storage-cloudinary";
+// import dotenv from "dotenv";
+// dotenv.config();
+
+// if (
+//   !process.env.CLOUDINARY_CLOUD_NAME ||
+//   !process.env.CLOUDINARY_API_KEY ||
+//   !process.env.CLOUDINARY_API_SECRET
+// ) {
+//   console.error("❌ Cloudinary env missing");
+// }
+
+// cloudinary.config({
+//   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+//   api_key: process.env.CLOUDINARY_API_KEY,
+//   api_secret: process.env.CLOUDINARY_API_SECRET,
+// });
+// ==================== END CLOUDINARY CODE ====================
+
 import multer from "multer";
-import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (
-  !process.env.CLOUDINARY_CLOUD_NAME ||
-  !process.env.CLOUDINARY_API_KEY ||
-  !process.env.CLOUDINARY_API_SECRET
-) {
-  console.error("❌ Cloudinary env missing");
-}
+// Ensure uploads directories exist
+const uploadsDir = path.join(__dirname, "../uploads");
+const productsDir = path.join(uploadsDir, "products");
+const slidersDir = path.join(uploadsDir, "sliders");
+const videosDir = path.join(uploadsDir, "videos");
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+[uploadsDir, productsDir, slidersDir, videosDir].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 });
 
-// PRODUCT IMAGES
-const productStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "glassecommerce_products",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    resource_type: "image",
+// ==================== LOCAL STORAGE SETUP ====================
+
+// PRODUCT IMAGES - Local Storage
+const productStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, productsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "product-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
+
 const productMulter = multer({
   storage: productStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -38,20 +62,23 @@ const productMulter = multer({
     cb(new Error("Invalid file type"), false);
   },
 });
+
 const uploadProductImages = productMulter.fields([
   { name: "mainImage", maxCount: 1 },
   { name: "galleryImages", maxCount: 10 },
 ]);
 
-// SLIDER IMAGE
-const sliderStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "glassecommerce_sliders",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    resource_type: "image",
+// SLIDER IMAGE - Local Storage
+const sliderStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, slidersDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "slider-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
+
 const sliderMulter = multer({
   storage: sliderStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -61,26 +88,42 @@ const sliderMulter = multer({
     cb(new Error("Invalid file type"), false);
   },
 });
+
 const uploadSliderImage = sliderMulter.single("image");
 
-
-// video revies
-const videoStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "glassecommerce_videos",
-    resource_type: "video",
-    allowed_formats: ["mp4", "mov", "webm", "mkv"],
+// VIDEO REVIEWS - Local Storage
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, videosDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "video-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
 
 const videoMulter = multer({
   storage: videoStorage,
   limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ["video/mp4", "video/mov", "video/webm", "video/mkv"];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    cb(new Error("Invalid video file type"), false);
+  },
 });
 
 const uploadVideo = videoMulter.single("video");
 
+// Dummy cloudinary object for compatibility
+const cloudinary = {
+  uploader: {
+    destroy: async (publicId) => {
+      // Local file deletion will be handled in controllers
+      console.log("Cloudinary disabled - file deletion handled locally");
+      return { result: "ok" };
+    },
+  },
+};
 
 export {
   cloudinary,

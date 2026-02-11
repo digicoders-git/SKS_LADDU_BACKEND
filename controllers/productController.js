@@ -2,6 +2,12 @@
 import Product from "../models/Product.js";
 import Category from "../models/Category.js";
 import { cloudinary } from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const parseMaybeJSON = (value, fallback) => {
   if (!value) return fallback;
@@ -49,8 +55,11 @@ export const createProduct = async (req, res) => {
     const mainImageFile = req.files.mainImage[0];
     const galleryFiles = req.files.galleryImages || [];
 
+    // Local file paths with BASE_URL
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    const mainImageUrl = `${baseUrl}/uploads/products/${mainImageFile.filename}`;
     const galleryImages = galleryFiles.map((file) => ({
-      url: file.path,
+      url: `${baseUrl}/uploads/products/${file.filename}`,
       publicId: file.filename,
     }));
 
@@ -62,7 +71,7 @@ export const createProduct = async (req, res) => {
       price: Number(price),
       discountPercent: Number(discountPercent || 0),
       mainImage: {
-        url: mainImageFile.path,
+        url: mainImageUrl,
         publicId: mainImageFile.filename,
       },
       galleryImages,
@@ -225,22 +234,35 @@ export const updateProduct = async (req, res) => {
 
     // main image update
     if (req.files?.mainImage?.[0]) {
-      await cloudinary.uploader.destroy(product.mainImage.publicId);
+      // Delete old local file
+      const oldFilePath = path.join(__dirname, "../", product.mainImage.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+      // await cloudinary.uploader.destroy(product.mainImage.publicId);
+      
       const file = req.files.mainImage[0];
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
       product.mainImage = {
-        url: file.path,
+        url: `${baseUrl}/uploads/products/${file.filename}`,
         publicId: file.filename,
       };
     }
 
     // gallery images update
     if (req.files?.galleryImages) {
+      // Delete old local files
       for (let img of product.galleryImages) {
-        await cloudinary.uploader.destroy(img.publicId);
+        const oldFilePath = path.join(__dirname, "../", img.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+        // await cloudinary.uploader.destroy(img.publicId);
       }
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
       product.galleryImages = req.files.galleryImages.map((file) => ({
-        url: file.path,
+        url: `${baseUrl}/uploads/products/${file.filename}`,
         publicId: file.filename,
       }));
     }
@@ -290,9 +312,19 @@ export const deleteProduct = async (req, res) => {
       (await Product.findById(idOrSlug));
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    await cloudinary.uploader.destroy(product.mainImage.publicId);
+    // Delete local files
+    const mainImagePath = path.join(__dirname, "../", product.mainImage.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+    if (fs.existsSync(mainImagePath)) {
+      fs.unlinkSync(mainImagePath);
+    }
+    // await cloudinary.uploader.destroy(product.mainImage.publicId);
+    
     for (let img of product.galleryImages) {
-      await cloudinary.uploader.destroy(img.publicId);
+      const imgPath = path.join(__dirname, "../", img.url.replace(process.env.BASE_URL || 'http://localhost:5000', ''));
+      if (fs.existsSync(imgPath)) {
+        fs.unlinkSync(imgPath);
+      }
+      // await cloudinary.uploader.destroy(img.publicId);
     }
 
     await Product.deleteOne({ _id: product._id });
